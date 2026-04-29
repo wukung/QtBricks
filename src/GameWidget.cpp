@@ -28,12 +28,12 @@ void GameWidget::initGame()
     moveRight = false;
 
     // Init paddle
-    paddleDx = 7.0;
+    paddleDx = 450.0;
     paddle.setRect(width() / 2.0 - PADDLE_WIDTH / 2.0, height() - 40, PADDLE_WIDTH, PADDLE_HEIGHT);
 
     // Init ball
-    ballDx = 4.0;
-    ballDy = -4.0;
+    ballSpeedX = 250.0;
+    ballSpeedY = -250.0;
     ball.setRect(width() / 2.0 - BALL_RADIUS, paddle.top() - BALL_RADIUS * 2 - 1, BALL_RADIUS * 2, BALL_RADIUS * 2);
 
     // Init bricks
@@ -49,6 +49,7 @@ void GameWidget::initGame()
         }
     }
 
+    elapsedTimer.start();
     timerId = startTimer(TIMER_DELAY);
 }
 
@@ -112,8 +113,12 @@ void GameWidget::paintEvent(QPaintEvent *event)
 void GameWidget::timerEvent(QTimerEvent *event)
 {
     if (event->timerId() == timerId) {
+        float dt = elapsedTimer.restart() / 1000.0f;
+        // Clamp dt to prevent huge jumps (e.g. if dragging the window)
+        if (dt > 0.1f) dt = 0.1f;
+        
         if (gameStarted && !gameOver && !gameWon) {
-            updateGame();
+            updateGame(dt);
             repaint();
         }
     } else {
@@ -121,59 +126,82 @@ void GameWidget::timerEvent(QTimerEvent *event)
     }
 }
 
-void GameWidget::updateGame()
+void GameWidget::updateGame(float dt)
 {
-    // Move paddle
-    if (moveLeft && paddle.left() > 0) {
-        paddle.translate(-paddleDx, 0);
-    }
-    if (moveRight && paddle.right() < width()) {
-        paddle.translate(paddleDx, 0);
-    }
-
-    // Move ball
-    ball.translate(ballDx, ballDy);
-
-    // Check boundaries
-    if (ball.left() <= 0) {
-        ballDx = qAbs(ballDx);
-        ball.moveLeft(0);
-    }
-    if (ball.right() >= width()) {
-        ballDx = -qAbs(ballDx);
-        ball.moveRight(width());
-    }
-    if (ball.top() <= 0) {
-        ballDy = qAbs(ballDy);
-        ball.moveTop(0);
-    }
+    float timeRemaining = dt;
     
-    // Bottom boundary - Game Over
-    if (ball.bottom() >= height()) {
-        gameOver = true;
-    }
+    // Physics sub-stepping to prevent tunneling at high speeds
+    while (timeRemaining > 0) {
+        float step = qMin(timeRemaining, MAX_TIME_STEP);
+        timeRemaining -= step;
 
-    checkCollision();
+        // Move paddle
+        if (moveLeft && paddle.left() > 0) {
+            paddle.translate(-paddleDx * step, 0);
+        }
+        if (moveRight && paddle.right() < width()) {
+            paddle.translate(paddleDx * step, 0);
+        }
+
+        // Move ball
+        ball.translate(ballSpeedX * step, ballSpeedY * step);
+
+        // Check boundaries
+        if (ball.left() <= 0) {
+            ballSpeedX = qAbs(ballSpeedX);
+            ball.moveLeft(0);
+        }
+        if (ball.right() >= width()) {
+            ballSpeedX = -qAbs(ballSpeedX);
+            ball.moveRight(width());
+        }
+        if (ball.top() <= 0) {
+            ballSpeedY = qAbs(ballSpeedY);
+            ball.moveTop(0);
+        }
+        
+        // Bottom boundary - Game Over
+        if (ball.bottom() >= height()) {
+            gameOver = true;
+        }
+
+        checkCollision();
+    }
 }
 
 void GameWidget::checkCollision()
 {
     // Ball with paddle
     if (ball.intersects(paddle)) {
-        // Simple physics: bounce based on where it hit the paddle
-        qreal paddleCenter = paddle.left() + paddle.width() / 2.0;
-        qreal ballCenter = ball.left() + ball.width() / 2.0;
-        
-        ballDx = (ballCenter - paddleCenter) * 0.15;
-        ballDy = -qAbs(ballDy); // Always bounce up
-        
-        // Ensure minimum vertical speed
-        if (qAbs(ballDy) < 2.0) {
-            ballDy = -2.0;
+        float overlapTop = ball.bottom() - paddle.top();
+        float overlapBottom = paddle.bottom() - ball.top();
+        float overlapLeft = ball.right() - paddle.left();
+        float overlapRight = paddle.right() - ball.left();
+
+        float minOverlap = qMin(qMin(overlapTop, overlapBottom), qMin(overlapLeft, overlapRight));
+
+        if (minOverlap == overlapTop) {
+            ball.moveBottom(paddle.top() - 0.1f);
+            ballSpeedY = -qAbs(ballSpeedY);
+
+            // Angle adjustment based on hit position
+            qreal paddleCenter = paddle.left() + paddle.width() / 2.0;
+            qreal ballCenter = ball.left() + ball.width() / 2.0;
+            ballSpeedX = (ballCenter - paddleCenter) * 8.0; 
+            
+            if (qAbs(ballSpeedY) < 100.0) {
+                ballSpeedY = -100.0;
+            }
+        } else if (minOverlap == overlapLeft) {
+            ball.moveRight(paddle.left() - 0.1f);
+            ballSpeedX = -qAbs(ballSpeedX);
+        } else if (minOverlap == overlapRight) {
+            ball.moveLeft(paddle.right() + 0.1f);
+            ballSpeedX = qAbs(ballSpeedX);
+        } else {
+            ball.moveTop(paddle.bottom() + 0.1f);
+            ballSpeedY = qAbs(ballSpeedY);
         }
-        
-        // Push ball above paddle to prevent getting stuck
-        ball.moveBottom(paddle.top() - 1);
     }
 
     // Ball with bricks
@@ -185,24 +213,29 @@ void GameWidget::checkCollision()
             if (ball.intersects(bricks[i].rect)) {
                 bricks[i].destroyed = true;
                 
-                // Determine bounce direction
                 QRectF b = bricks[i].rect;
-                
-                bool hitFromBottom = ball.top() < b.bottom() && ball.bottom() > b.bottom() && ballDy < 0;
-                bool hitFromTop = ball.bottom() > b.top() && ball.top() < b.top() && ballDy > 0;
-                bool hitFromLeft = ball.right() > b.left() && ball.left() < b.left() && ballDx > 0;
-                bool hitFromRight = ball.left() < b.right() && ball.right() > b.right() && ballDx < 0;
-                
-                if (hitFromTop || hitFromBottom) {
-                    ballDy = -ballDy;
-                } else if (hitFromLeft || hitFromRight) {
-                    ballDx = -ballDx;
-                } else {
-                    // Fallback
-                    ballDy = -ballDy;
+                float overlapTop = ball.bottom() - b.top();
+                float overlapBottom = b.bottom() - ball.top();
+                float overlapLeft = ball.right() - b.left();
+                float overlapRight = b.right() - ball.left();
+
+                float minOverlap = qMin(qMin(overlapTop, overlapBottom), qMin(overlapLeft, overlapRight));
+
+                if (minOverlap == overlapTop) {
+                    ball.moveBottom(b.top() - 0.1f);
+                    ballSpeedY = -qAbs(ballSpeedY);
+                } else if (minOverlap == overlapBottom) {
+                    ball.moveTop(b.bottom() + 0.1f);
+                    ballSpeedY = qAbs(ballSpeedY);
+                } else if (minOverlap == overlapLeft) {
+                    ball.moveRight(b.left() - 0.1f);
+                    ballSpeedX = -qAbs(ballSpeedX);
+                } else if (minOverlap == overlapRight) {
+                    ball.moveLeft(b.right() + 0.1f);
+                    ballSpeedX = qAbs(ballSpeedX);
                 }
                 
-                break; // Only break one brick per frame
+                break; // Only break one brick per step
             }
         }
     }

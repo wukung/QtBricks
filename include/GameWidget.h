@@ -7,6 +7,7 @@
 #include <QPainter>
 #include <QVector>
 #include <QRectF>
+#include <QElapsedTimer>
 
 class GameWidget : public QWidget
 {
@@ -24,13 +25,14 @@ protected:
 
 private:
     void initGame();
-    void updateGame();
+    void updateGame(float dt);
     void checkCollision();
 
     int timerId;
     bool gameStarted;
     bool gameOver;
     bool gameWon;
+    QElapsedTimer elapsedTimer;
 
     // Paddle properties
     QRectF paddle;
@@ -40,8 +42,8 @@ private:
 
     // Ball properties
     QRectF ball;
-    qreal ballDx;
-    qreal ballDy;
+    qreal ballSpeedX;
+    qreal ballSpeedY;
 
     // Bricks properties
     struct Brick {
@@ -61,7 +63,8 @@ private:
     static constexpr int BRICK_GAP = 5;
     static constexpr int TOP_MARGIN = 50;
     static constexpr int SIDE_MARGIN = 20;
-    static constexpr int TIMER_DELAY = 16; // ~60 FPS
+    static constexpr int TIMER_DELAY = 16; // Target ~60 FPS update
+    static constexpr float MAX_TIME_STEP = 0.005f; // Max 5ms per physics step
 };
 
 #endif // GAMEWIDGET_H
