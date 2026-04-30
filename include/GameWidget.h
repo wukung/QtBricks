@@ -8,6 +8,9 @@
 #include <QVector>
 #include <QRectF>
 #include <QElapsedTimer>
+#include "Ball.h"
+#include "Paddle.h"
+#include "Brick.h"
 
 class GameWidget : public QWidget
 {
@@ -34,22 +37,9 @@ private:
     bool gameWon;
     QElapsedTimer elapsedTimer;
 
-    // Paddle properties
-    QRectF paddle;
-    qreal paddleDx;
-    bool moveLeft;
-    bool moveRight;
-
-    // Ball properties
-    QRectF ball;
-    qreal ballSpeedX;
-    qreal ballSpeedY;
-
-    // Bricks properties
-    struct Brick {
-        QRectF rect;
-        bool destroyed;
-    };
+    // Game Objects
+    Paddle paddle;
+    Ball ball;
     QVector<Brick> bricks;
 
     // Constants

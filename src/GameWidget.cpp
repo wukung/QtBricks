@@ -4,10 +4,8 @@
 GameWidget::GameWidget(QWidget *parent)
     : QWidget(parent)
 {
-    // Make sure widget can receive keyboard focus
     setFocusPolicy(Qt::StrongFocus);
     
-    // Set fixed size for the game window
     int windowWidth = SIDE_MARGIN * 2 + BRICK_COLS * BRICK_WIDTH + (BRICK_COLS - 1) * BRICK_GAP;
     int windowHeight = 600;
     setFixedSize(windowWidth, windowHeight);
@@ -24,17 +22,16 @@ void GameWidget::initGame()
     gameStarted = false;
     gameOver = false;
     gameWon = false;
-    moveLeft = false;
-    moveRight = false;
 
     // Init paddle
-    paddleDx = 450.0;
-    paddle.setRect(width() / 2.0 - PADDLE_WIDTH / 2.0, height() - 40, PADDLE_WIDTH, PADDLE_HEIGHT);
+    qreal paddleStartX = width() / 2.0 - PADDLE_WIDTH / 2.0;
+    qreal paddleStartY = height() - 40;
+    paddle.init(paddleStartX, paddleStartY, PADDLE_WIDTH, PADDLE_HEIGHT, 450.0);
 
     // Init ball
-    ballSpeedX = 250.0;
-    ballSpeedY = -250.0;
-    ball.setRect(width() / 2.0 - BALL_RADIUS, paddle.top() - BALL_RADIUS * 2 - 1, BALL_RADIUS * 2, BALL_RADIUS * 2);
+    qreal ballStartX = width() / 2.0 - BALL_RADIUS;
+    qreal ballStartY = paddleStartY - BALL_RADIUS * 2 - 1;
+    ball.init(ballStartX, ballStartY, BALL_RADIUS, 250.0, -250.0);
 
     // Init bricks
     bricks.clear();
@@ -43,8 +40,17 @@ void GameWidget::initGame()
             Brick brick;
             qreal x = SIDE_MARGIN + col * (BRICK_WIDTH + BRICK_GAP);
             qreal y = TOP_MARGIN + row * (BRICK_HEIGHT + BRICK_GAP);
-            brick.rect.setRect(x, y, BRICK_WIDTH, BRICK_HEIGHT);
-            brick.destroyed = false;
+            
+            QColor brickColor;
+            switch(row % 5) {
+                case 0: brickColor = QColor(255, 100, 100); break;
+                case 1: brickColor = QColor(255, 150, 100); break;
+                case 2: brickColor = QColor(255, 255, 100); break;
+                case 3: brickColor = QColor(100, 255, 100); break;
+                case 4: brickColor = QColor(100, 100, 255); break;
+            }
+            
+            brick.init(x, y, BRICK_WIDTH, BRICK_HEIGHT, brickColor);
             bricks.append(brick);
         }
     }
@@ -76,31 +82,11 @@ void GameWidget::paintEvent(QPaintEvent *event)
         return;
     }
 
-    // Draw Paddle
-    painter.setBrush(QColor(100, 200, 255));
-    painter.setPen(Qt::NoPen);
-    painter.drawRoundedRect(paddle, 5, 5);
-
-    // Draw Ball
-    painter.setBrush(QColor(255, 100, 100));
-    painter.drawEllipse(ball);
-
-    // Draw Bricks
+    // Draw objects
+    paddle.draw(&painter);
+    ball.draw(&painter);
     for (int i = 0; i < bricks.size(); ++i) {
-        if (!bricks[i].destroyed) {
-            // Give different colors based on row
-            int row = i / BRICK_COLS;
-            QColor brickColor;
-            switch(row % 5) {
-                case 0: brickColor = QColor(255, 100, 100); break;
-                case 1: brickColor = QColor(255, 150, 100); break;
-                case 2: brickColor = QColor(255, 255, 100); break;
-                case 3: brickColor = QColor(100, 255, 100); break;
-                case 4: brickColor = QColor(100, 100, 255); break;
-            }
-            painter.setBrush(brickColor);
-            painter.drawRoundedRect(bricks[i].rect, 3, 3);
-        }
+        bricks[i].draw(&painter);
     }
 
     if (!gameStarted) {
@@ -114,7 +100,6 @@ void GameWidget::timerEvent(QTimerEvent *event)
 {
     if (event->timerId() == timerId) {
         float dt = elapsedTimer.restart() / 1000.0f;
-        // Clamp dt to prevent huge jumps (e.g. if dragging the window)
         if (dt > 0.1f) dt = 0.1f;
         
         if (gameStarted && !gameOver && !gameWon) {
@@ -130,38 +115,31 @@ void GameWidget::updateGame(float dt)
 {
     float timeRemaining = dt;
     
-    // Physics sub-stepping to prevent tunneling at high speeds
     while (timeRemaining > 0) {
         float step = qMin(timeRemaining, MAX_TIME_STEP);
         timeRemaining -= step;
 
-        // Move paddle
-        if (moveLeft && paddle.left() > 0) {
-            paddle.translate(-paddleDx * step, 0);
-        }
-        if (moveRight && paddle.right() < width()) {
-            paddle.translate(paddleDx * step, 0);
-        }
+        paddle.update(step, width());
+        ball.move(step);
 
-        // Move ball
-        ball.translate(ballSpeedX * step, ballSpeedY * step);
+        QRectF bRect = ball.getRect();
 
         // Check boundaries
-        if (ball.left() <= 0) {
-            ballSpeedX = qAbs(ballSpeedX);
+        if (bRect.left() <= 0) {
+            ball.setSpeedX(qAbs(ball.getSpeedX()));
             ball.moveLeft(0);
         }
-        if (ball.right() >= width()) {
-            ballSpeedX = -qAbs(ballSpeedX);
+        if (bRect.right() >= width()) {
+            ball.setSpeedX(-qAbs(ball.getSpeedX()));
             ball.moveRight(width());
         }
-        if (ball.top() <= 0) {
-            ballSpeedY = qAbs(ballSpeedY);
+        if (bRect.top() <= 0) {
+            ball.setSpeedY(qAbs(ball.getSpeedY()));
             ball.moveTop(0);
         }
         
         // Bottom boundary - Game Over
-        if (ball.bottom() >= height()) {
+        if (bRect.bottom() >= height()) {
             gameOver = true;
         }
 
@@ -171,72 +149,82 @@ void GameWidget::updateGame(float dt)
 
 void GameWidget::checkCollision()
 {
+    QRectF bRect = ball.getRect();
+    QRectF pRect = paddle.getRect();
+
     // Ball with paddle
-    if (ball.intersects(paddle)) {
-        float overlapTop = ball.bottom() - paddle.top();
-        float overlapBottom = paddle.bottom() - ball.top();
-        float overlapLeft = ball.right() - paddle.left();
-        float overlapRight = paddle.right() - ball.left();
+    if (bRect.intersects(pRect)) {
+        float overlapTop = bRect.bottom() - pRect.top();
+        float overlapBottom = pRect.bottom() - bRect.top();
+        float overlapLeft = bRect.right() - pRect.left();
+        float overlapRight = pRect.right() - bRect.left();
 
         float minOverlap = qMin(qMin(overlapTop, overlapBottom), qMin(overlapLeft, overlapRight));
 
         if (minOverlap == overlapTop) {
-            ball.moveBottom(paddle.top() - 0.1f);
-            ballSpeedY = -qAbs(ballSpeedY);
+            ball.moveBottom(pRect.top() - 0.1f);
+            ball.setSpeedY(-qAbs(ball.getSpeedY()));
 
-            // Angle adjustment based on hit position
-            qreal paddleCenter = paddle.left() + paddle.width() / 2.0;
-            qreal ballCenter = ball.left() + ball.width() / 2.0;
-            ballSpeedX = (ballCenter - paddleCenter) * 8.0; 
+            qreal paddleCenter = pRect.left() + pRect.width() / 2.0;
+            qreal ballCenter = ball.getRect().left() + ball.getRect().width() / 2.0;
+            ball.setSpeedX((ballCenter - paddleCenter) * 8.0); 
             
-            if (qAbs(ballSpeedY) < 100.0) {
-                ballSpeedY = -100.0;
+            if (qAbs(ball.getSpeedY()) < 100.0) {
+                ball.setSpeedY(-100.0);
             }
         } else if (minOverlap == overlapLeft) {
-            ball.moveRight(paddle.left() - 0.1f);
-            ballSpeedX = -qAbs(ballSpeedX);
+            ball.moveRight(pRect.left() - 0.1f);
+            ball.setSpeedX(-qAbs(ball.getSpeedX()));
         } else if (minOverlap == overlapRight) {
-            ball.moveLeft(paddle.right() + 0.1f);
-            ballSpeedX = qAbs(ballSpeedX);
+            ball.moveLeft(pRect.right() + 0.1f);
+            ball.setSpeedX(qAbs(ball.getSpeedX()));
         } else {
-            ball.moveTop(paddle.bottom() + 0.1f);
-            ballSpeedY = qAbs(ballSpeedY);
+            ball.moveTop(pRect.bottom() + 0.1f);
+            ball.setSpeedY(qAbs(ball.getSpeedY()));
         }
+        
+        // Update local reference
+        bRect = ball.getRect();
     }
 
     // Ball with bricks
-    bool allDestroyed = true;
     for (int i = 0; i < bricks.size(); ++i) {
-        if (!bricks[i].destroyed) {
-            allDestroyed = false;
-            
-            if (ball.intersects(bricks[i].rect)) {
-                bricks[i].destroyed = true;
+        if (!bricks[i].isDestroyed()) {
+            QRectF brickRect = bricks[i].getRect();
+            if (bRect.intersects(brickRect)) {
+                bricks[i].setDestroyed(true);
                 
-                QRectF b = bricks[i].rect;
-                float overlapTop = ball.bottom() - b.top();
-                float overlapBottom = b.bottom() - ball.top();
-                float overlapLeft = ball.right() - b.left();
-                float overlapRight = b.right() - ball.left();
+                float overlapTop = bRect.bottom() - brickRect.top();
+                float overlapBottom = brickRect.bottom() - bRect.top();
+                float overlapLeft = bRect.right() - brickRect.left();
+                float overlapRight = brickRect.right() - bRect.left();
 
                 float minOverlap = qMin(qMin(overlapTop, overlapBottom), qMin(overlapLeft, overlapRight));
 
                 if (minOverlap == overlapTop) {
-                    ball.moveBottom(b.top() - 0.1f);
-                    ballSpeedY = -qAbs(ballSpeedY);
+                    ball.moveBottom(brickRect.top() - 0.1f);
+                    ball.setSpeedY(-qAbs(ball.getSpeedY()));
                 } else if (minOverlap == overlapBottom) {
-                    ball.moveTop(b.bottom() + 0.1f);
-                    ballSpeedY = qAbs(ballSpeedY);
+                    ball.moveTop(brickRect.bottom() + 0.1f);
+                    ball.setSpeedY(qAbs(ball.getSpeedY()));
                 } else if (minOverlap == overlapLeft) {
-                    ball.moveRight(b.left() - 0.1f);
-                    ballSpeedX = -qAbs(ballSpeedX);
+                    ball.moveRight(brickRect.left() - 0.1f);
+                    ball.setSpeedX(-qAbs(ball.getSpeedX()));
                 } else if (minOverlap == overlapRight) {
-                    ball.moveLeft(b.right() + 0.1f);
-                    ballSpeedX = qAbs(ballSpeedX);
+                    ball.moveLeft(brickRect.right() + 0.1f);
+                    ball.setSpeedX(qAbs(ball.getSpeedX()));
                 }
                 
                 break; // Only break one brick per step
             }
+        }
+    }
+
+    bool allDestroyed = true;
+    for (int i = 0; i < bricks.size(); ++i) {
+        if (!bricks[i].isDestroyed()) {
+            allDestroyed = false;
+            break;
         }
     }
 
@@ -249,10 +237,10 @@ void GameWidget::keyPressEvent(QKeyEvent *event)
 {
     switch (event->key()) {
         case Qt::Key_Left:
-            moveLeft = true;
+            paddle.setMovingLeft(true);
             break;
         case Qt::Key_Right:
-            moveRight = true;
+            paddle.setMovingRight(true);
             break;
         case Qt::Key_Space:
             if (gameOver || gameWon) {
@@ -275,10 +263,10 @@ void GameWidget::keyReleaseEvent(QKeyEvent *event)
 {
     switch (event->key()) {
         case Qt::Key_Left:
-            moveLeft = false;
+            paddle.setMovingLeft(false);
             break;
         case Qt::Key_Right:
-            moveRight = false;
+            paddle.setMovingRight(false);
             break;
         default:
             QWidget::keyReleaseEvent(event);

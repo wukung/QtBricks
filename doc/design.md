@@ -17,23 +17,24 @@
 
 ## 3. 遊戲物件與實作細節
 
-所有的遊戲邏輯與物件定義皆封裝於 `GameWidget` 類別中。
+所有的遊戲邏輯與物件定義已重構並獨立為 `Ball`, `Paddle`, `Brick` 三個 C++ 類別，而 `GameWidget` 負責實例化並管理它們，降低了整體的耦合度。
 
 ### 3.1. 擋板 (Paddle)
-- **資料結構**：使用 `QRectF` 定義擋板的位置與長寬。
-- **控制方式**：透過監聽左右方向鍵 (`Qt::Key_Left`, `Qt::Key_Right`) 更新布林值 `moveLeft` 與 `moveRight`。在物理子步進 (Sub-stepping) 迴圈中，根據這些布林值與 `dt` 平滑地移動擋板位置，並限制其不可超出視窗左右邊界。
+- **類別**：`Paddle` (`Paddle.h`, `Paddle.cpp`)
+- **資料結構**：使用 `QRectF` 定義擋板的位置與長寬，並內部維護狀態 (`moveLeft`, `moveRight`, `moveSpeed`)。
+- **控制與更新**：提供 `setMovingLeft()` / `setMovingRight()` 供外部呼叫。呼叫 `update(dt, windowWidth)` 時，類別會根據內部狀態平滑移動，並確保不超出邊界。提供 `draw(QPainter*)` 方法自行渲染。
 
 ### 3.2. 球 (Ball)
-- **資料結構**：使用 `QRectF` 定義球的邊界框，輔以 `ballSpeedX` 與 `ballSpeedY` 記錄球在 x 軸與 y 軸上的每秒移動像素速度。
-- **運動與邊界碰撞**：
-  - 為了避免高速下發生穿透 (Tunneling) 現象，程式在 `updateGame(float dt)` 中實作了**物理子步進 (Sub-stepping)**。將每個畫面的經過時間切割成最大不超過 5ms 的小步長。
-  - 每個小步長將球平移 `(ballSpeedX * step, ballSpeedY * step)`。
-  - 當球碰到視窗左、右、上邊界時，會將速度向量反轉，實現反彈效果。
-  - 若球碰到下邊界，則判定遊戲結束 (`gameOver = true`)。
+- **類別**：`Ball` (`Ball.h`, `Ball.cpp`)
+- **資料結構**：使用 `QRectF` 定義邊界框，輔以 `speedX` 與 `speedY` 記錄每秒移動速度。
+- **運動更新**：
+  - `move(float step)`：負責以指定的子步長時間平移球體。
+  - `GameWidget` 負責呼叫此方法並於外部偵測視窗邊界碰撞，藉由 `setSpeedX`、`setSpeedY` 等 setter 改變其運動方向。提供 `draw(QPainter*)` 方法自行渲染。
 
-### 3.3. 磚塊 (Bricks)
-- **資料結構**：定義了一個簡單的 `Brick` 結構體，包含 `QRectF rect` (磚塊區域) 與 `bool destroyed` (是否已被擊破)。
-- **初始化**：在 `initGame()` 中，程式會產生 5 列 10 行共 50 個磚塊，並根據行列加上間距排列於畫面上方。
+### 3.3. 磚塊 (Brick)
+- **類別**：`Brick` (`Brick.h`, `Brick.cpp`)
+- **資料結構**：包含 `QRectF rect` (磚塊區域)、`QColor brickColor` (顏色) 與 `bool destroyed` (擊破狀態)。
+- **操作**：提供 `setDestroyed(bool)` 等狀態修改介面，並由 `draw(QPainter*)` 負責根據其狀態與顏色進行繪製。
 
 ### 3.4. 碰撞偵測 (Collision Detection)
 遊戲使用 AABB 碰撞偵測機制 (`QRectF::intersects`) 結合**最小重疊量演算法 (Penetration Depth)**：
@@ -53,9 +54,19 @@
 
 在畫面渲染 (`paintEvent`) 中，會根據這些狀態繪製相對應的文字提示（如 "Press Space to Start", "Game Over", "You Win!"）。
 
-## 5. 未來擴充方向 (Future Work)
+## 5. 單元測試 (Unit Testing)
 
-此設計架構簡單明瞭，若未來需要擴充，可以考慮以下方向：
-1. **物件導向重構**：將 Ball, Paddle, Brick 獨立成不同的 C++ 類別，降低 `GameWidget` 的耦合度。
-2. **場景管理**：加入關卡設計 (Level Design) 與分數統計 (Score System)。
-3. **特效與道具**：增加磚塊的硬度設計（需要多次撞擊）、或是掉落能改變擋板長度或球速的道具。
+為了確保遊戲物理與核心邏輯的穩定性，本專案已導入 **Qt Test** 單元測試框架：
+- **架構設計**：將 `Ball`, `Paddle`, `Brick` 等核心物件編譯成靜態函式庫 `QtBricksCore`，使得主程式與測試程式能共用核心邏輯。
+- **測試涵蓋範圍**：
+  - `tst_ball.cpp`：測試球體的初始化、依據時間步長 (`dt`) 的平移邏輯與強制位移方法。
+  - `tst_paddle.cpp`：測試擋板的狀態機（左右移動）、速度更新以及預期位置。
+  - `tst_brick.cpp`：測試磚塊的擊破狀態修改與初始配置。
+- **執行方式**：編譯完成後，可於 `build` 目錄下執行 `ctest` 自動跑完所有測試案例。
+
+## 6. 未來擴充方向 (Future Work)
+
+此設計架構已將核心物件獨立化，為未來擴充奠定了良好的基礎，後續可考慮以下方向：
+1. **場景與關卡管理**：加入 Level Design，動態載入不同的磚塊配置，並加入分數統計與 UI (Score System)。
+2. **特效與道具**：加入會掉落的 Power-ups (例如改變擋板長度、增加多顆球、或子彈射擊)，並讓磚塊具備不同硬度 (需多次撞擊)。
+3. **音效與動畫**：在碰撞發生時觸發音效，或是在磚塊擊破時加入粒子特效 (Particle Effects)。
