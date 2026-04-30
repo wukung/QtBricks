@@ -22,6 +22,9 @@ void GameWidget::initGame()
     gameStarted = false;
     gameOver = false;
     gameWon = false;
+    gameTime = 0.0f;
+    
+    scoreManager.reset();
 
     // Init paddle
     qreal paddleStartX = width() / 2.0 - PADDLE_WIDTH / 2.0;
@@ -68,17 +71,36 @@ void GameWidget::paintEvent(QPaintEvent *event)
     // Fill background
     painter.fillRect(rect(), QColor(30, 30, 30));
 
-    if (gameOver) {
+    // Draw score
+    painter.setPen(Qt::white);
+    painter.setFont(QFont("Arial", 16, QFont::Bold));
+    painter.drawText(10, 30, QString("Score: %1").arg(scoreManager.getScore()));
+
+    auto drawLeaderboard = [&](const QString& title) {
         painter.setPen(Qt::white);
         painter.setFont(QFont("Arial", 24, QFont::Bold));
-        painter.drawText(rect(), Qt::AlignCenter, "Game Over\nPress Space to Restart");
+        
+        QRect titleRect(0, 0, width(), height() / 2 - 50);
+        painter.drawText(titleRect, Qt::AlignBottom | Qt::AlignHCenter, title + "\nPress Space to Restart");
+        
+        painter.setFont(QFont("Arial", 16));
+        auto top = scoreManager.getTopScores();
+        QString topStr = "Top 5:\n";
+        for (int i=0; i<top.size(); ++i) {
+            topStr += QString("%1. %2 pts (%3s)\n").arg(i+1).arg(top[i].first).arg(top[i].second, 0, 'f', 1);
+        }
+        
+        QRect boardRect(0, height() / 2 - 20, width(), height() / 2 + 20);
+        painter.drawText(boardRect, Qt::AlignTop | Qt::AlignHCenter, topStr);
+    };
+
+    if (gameOver) {
+        drawLeaderboard("Game Over");
         return;
     }
 
     if (gameWon) {
-        painter.setPen(Qt::white);
-        painter.setFont(QFont("Arial", 24, QFont::Bold));
-        painter.drawText(rect(), Qt::AlignCenter, "You Win!\nPress Space to Restart");
+        drawLeaderboard("You Win!");
         return;
     }
 
@@ -114,6 +136,7 @@ void GameWidget::timerEvent(QTimerEvent *event)
 void GameWidget::updateGame(float dt)
 {
     float timeRemaining = dt;
+    gameTime += dt;
     
     while (timeRemaining > 0) {
         float step = qMin(timeRemaining, MAX_TIME_STEP);
@@ -140,10 +163,18 @@ void GameWidget::updateGame(float dt)
         
         // Bottom boundary - Game Over
         if (bRect.bottom() >= height()) {
-            gameOver = true;
+            if (!gameOver) {
+                gameOver = true;
+                scoreManager.saveScore(gameTime);
+                break; // 停止後續的物理子步進與碰撞判定
+            }
         }
 
         checkCollision();
+        
+        if (gameWon) {
+            break; // 若已過關則停止後續子步進
+        }
     }
 }
 
@@ -193,6 +224,9 @@ void GameWidget::checkCollision()
             QRectF brickRect = bricks[i].getRect();
             if (bRect.intersects(brickRect)) {
                 bricks[i].setDestroyed(true);
+                int row = i / BRICK_COLS;
+                int points = (BRICK_ROWS - row) * 10;
+                scoreManager.addScore(points);
                 
                 float overlapTop = bRect.bottom() - brickRect.top();
                 float overlapBottom = brickRect.bottom() - bRect.top();
@@ -229,7 +263,10 @@ void GameWidget::checkCollision()
     }
 
     if (allDestroyed) {
-        gameWon = true;
+        if (!gameWon) {
+            gameWon = true;
+            scoreManager.saveScore(gameTime);
+        }
     }
 }
 

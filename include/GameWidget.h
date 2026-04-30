@@ -11,6 +11,7 @@
 #include "Ball.h"
 #include "Paddle.h"
 #include "Brick.h"
+#include "ScoreManager.h"
 
 class GameWidget : public QWidget
 {
@@ -36,11 +37,13 @@ private:
     bool gameOver;
     bool gameWon;
     QElapsedTimer elapsedTimer;
+    float gameTime;
 
     // Game Objects
     Paddle paddle;
     Ball ball;
     QVector<Brick> bricks;
+    ScoreManager scoreManager;
 
     // Constants
     static constexpr int PADDLE_WIDTH = 100;
