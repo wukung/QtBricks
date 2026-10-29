@@ -21,6 +21,22 @@ public:
     explicit GameWidget(QWidget *parent = nullptr);
     ~GameWidget();
 
+    // Read-only test hooks (offscreen tests, no behavior change).
+    QRectF ballRect() const { return ball.getRect(); }
+    QRectF paddleRect() const { return paddle.getRect(); }
+    int remainingBricks() const {
+        int n = 0;
+        for (const Brick &b : bricks) {
+            if (!b.isDestroyed()) {
+                ++n;
+            }
+        }
+        return n;
+    }
+    bool isGameStarted() const { return gameStarted; }
+    bool isGameOver() const { return gameOver; }
+    bool isGameWon() const { return gameWon; }
+
 protected:
     void paintEvent(QPaintEvent *event) override;
     void timerEvent(QTimerEvent *event) override;
