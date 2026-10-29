@@ -19,6 +19,10 @@ public:
 
 private:
     int score;
+    // Cached leaderboard: avoids QSettings disk I/O on every read
+    // (e.g. paintEvent). Invalidated by saveScore/clearLeaderboard.
+    mutable QList<QPair<int, float>> topCache;
+    mutable bool topCacheValid = false;
 };
 
 #endif // SCOREMANAGER_H

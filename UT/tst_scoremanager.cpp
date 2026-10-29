@@ -1,4 +1,6 @@
 #include <QtTest>
+#include <QTemporaryDir>
+#include <limits>
 #include "ScoreManager.h"
 
 class TestScoreManager : public QObject
@@ -6,6 +8,17 @@ class TestScoreManager : public QObject
     Q_OBJECT
 
 private slots:
+    void initTestCase() {
+        // Isolate tests from the user's real leaderboard: redirect
+        // QSettings user-scope storage to a temp dir for this process.
+        // Each test binary runs in its own process, so this is safe.
+        QVERIFY(settingsDir.isValid());
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope,
+                           settingsDir.path());
+        QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope,
+                           settingsDir.path());
+    }
+
     void init() {
         ScoreManager sm;
         sm.clearLeaderboard();
@@ -80,6 +93,30 @@ private slots:
         // The 50 score should be pushed out
         QCOMPARE(tops.last().first, 100);
     }
+
+    void testTamperedEntriesFiltered() {
+        QSettings raw("QtBricksDev", "QtBricksGame");
+        raw.beginWriteArray("Leaderboard");
+        raw.setArrayIndex(0);
+        raw.setValue("score", 100);
+        raw.setValue("duration", 10.0);
+        raw.setArrayIndex(1);
+        raw.setValue("score", -50); // tampered: negative score
+        raw.setValue("duration", 5.0);
+        raw.setArrayIndex(2);
+        raw.setValue("score", 80); // tampered: NaN duration
+        raw.setValue("duration", std::numeric_limits<double>::quiet_NaN());
+        raw.endArray();
+        raw.sync();
+
+        ScoreManager sm;
+        QList<QPair<int, float>> tops = sm.getTopScores();
+        QCOMPARE(tops.size(), 1);
+        QCOMPARE(tops[0].first, 100);
+    }
+
+private:
+    QTemporaryDir settingsDir;
 };
 
 QTEST_MAIN(TestScoreManager)

@@ -1,5 +1,6 @@
 #include "ScoreManager.h"
 #include <algorithm>
+#include <cmath>
 
 ScoreManager::ScoreManager() : score(0) {}
 
@@ -45,21 +46,32 @@ void ScoreManager::saveScore(float duration) {
     }
     settings.endArray();
     settings.sync();
+    topCacheValid = false;
 }
 
 QList<QPair<int, float>> ScoreManager::getTopScores() const {
+    if (topCacheValid) {
+        return topCache;
+    }
+
     QSettings settings("QtBricksDev", "QtBricksGame");
     QList<QPair<int, float>> topScores;
-    
+
     int size = settings.beginReadArray("Leaderboard");
     for (int i = 0; i < size; ++i) {
         settings.setArrayIndex(i);
         int s = settings.value("score").toInt();
         float d = (float)settings.value("duration").toDouble();
+        // Drop tampered entries instead of rendering them as-is.
+        if (s < 0 || d < 0 || !std::isfinite(d)) {
+            continue;
+        }
         topScores.append(qMakePair(s, d));
     }
     settings.endArray();
-    
+
+    topCache = topScores;
+    topCacheValid = true;
     return topScores;
 }
 
@@ -67,4 +79,5 @@ void ScoreManager::clearLeaderboard() {
     QSettings settings("QtBricksDev", "QtBricksGame");
     settings.remove("Leaderboard");
     settings.sync();
+    topCacheValid = false;
 }
