@@ -31,8 +31,10 @@ private:
     void initGame();
     void updateGame(float dt);
     void checkCollision();
+    void startGameTimer();
+    void stopGameTimer();
 
-    int timerId;
+    int timerId = -1;
     bool gameStarted;
     bool gameOver;
     bool gameWon;

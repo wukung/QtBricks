@@ -15,6 +15,22 @@ GameWidget::GameWidget(QWidget *parent)
 
 GameWidget::~GameWidget()
 {
+    stopGameTimer();
+}
+
+void GameWidget::startGameTimer()
+{
+    if (timerId < 0) {
+        timerId = startTimer(TIMER_DELAY);
+    }
+}
+
+void GameWidget::stopGameTimer()
+{
+    if (timerId >= 0) {
+        killTimer(timerId);
+        timerId = -1;
+    }
 }
 
 void GameWidget::initGame()
@@ -59,7 +75,9 @@ void GameWidget::initGame()
     }
 
     elapsedTimer.start();
-    timerId = startTimer(TIMER_DELAY);
+    // initGame only (re)starts the timer: callers restarting a live game
+    // must stopGameTimer() first (see keyPressEvent).
+    startGameTimer();
 }
 
 void GameWidget::paintEvent(QPaintEvent *event)
@@ -280,8 +298,11 @@ void GameWidget::keyPressEvent(QKeyEvent *event)
             paddle.setMovingRight(true);
             break;
         case Qt::Key_Space:
+            if (event->isAutoRepeat()) {
+                break; // Holding space must not restart the game repeatedly.
+            }
             if (gameOver || gameWon) {
-                killTimer(timerId);
+                stopGameTimer();
                 initGame();
                 repaint();
             } else if (!gameStarted) {
