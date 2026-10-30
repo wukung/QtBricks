@@ -1,7 +1,8 @@
 #include <QtTest>
 #include "GameWidget.h"
 
-// Runs offscreen (QT_QPA_PLATFORM=offscreen, set by CI and ctest env).
+// Widget tests need a platform plugin; run with QT_QPA_PLATFORM=offscreen
+// when no display is available.
 class TestGameWidget : public QObject
 {
     Q_OBJECT
