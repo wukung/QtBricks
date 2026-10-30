@@ -9,14 +9,17 @@ class TestScoreManager : public QObject
 
 private slots:
     void initTestCase() {
-        // Isolate tests from the user's real leaderboard: redirect
-        // QSettings user-scope storage to a temp dir for this process.
-        // Each test binary runs in its own process, so this is safe.
+        // Isolate tests from the user's real leaderboard: redirect the
+        // backing store to a temp ini file. Works on every OS because the
+        // override bypasses NativeFormat (registry / CFPreferences);
+        // production never sets it, so no score migration happens.
         QVERIFY(settingsDir.isValid());
-        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope,
-                           settingsDir.path());
-        QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope,
-                           settingsDir.path());
+        ScoreManager::setSettingsFileOverride(
+            settingsDir.filePath("TestLeaderboard.ini"));
+    }
+
+    void cleanupTestCase() {
+        ScoreManager::clearSettingsFileOverride();
     }
 
     void init() {
@@ -95,7 +98,8 @@ private slots:
     }
 
     void testTamperedEntriesFiltered() {
-        QSettings raw("QtBricksDev", "QtBricksGame");
+        QSettings raw(ScoreManager::settingsFileOverride(),
+                      QSettings::IniFormat);
         raw.beginWriteArray("Leaderboard");
         raw.setArrayIndex(0);
         raw.setValue("score", 100);
@@ -106,6 +110,9 @@ private slots:
         raw.setArrayIndex(2);
         raw.setValue("score", 80); // tampered: NaN duration
         raw.setValue("duration", std::numeric_limits<double>::quiet_NaN());
+        raw.setArrayIndex(3);
+        raw.setValue("score", 70); // tampered: unparseable duration
+        raw.setValue("duration", "abc");
         raw.endArray();
         raw.sync();
 
