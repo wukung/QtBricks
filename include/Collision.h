@@ -7,13 +7,12 @@ enum class CollisionSide { Top, Bottom, Left, Right };
 
 // Minimum-penetration side between a moving rect and a solid rect.
 // Precondition: the rects intersect. Ties resolve deterministically in
-// Top, Bottom, Left, Right order (no float == comparison).
-// All math in qreal to avoid float/qreal precision mixing.
+// Top, Bottom, Left, Right order.
 CollisionSide collisionSide(const QRectF &moving, const QRectF &solid);
 
 // Paddle bounce: horizontal speed from the hit offset relative to the
-// paddle center, clamped to [-maxAbs, maxAbs] so long rallies cannot
-// accelerate the ball without bound.
+// paddle center, clamped to [-maxAbs, maxAbs] as a guard so centers
+// outside the reachable range cannot produce unbounded speeds.
 qreal paddleBounceSpeedX(qreal ballCenterX, const QRectF &paddleRect,
                          qreal factor, qreal maxAbs);
 

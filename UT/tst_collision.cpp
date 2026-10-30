@@ -32,11 +32,28 @@ private slots:
     }
 
     void testTieBreakIsDeterministic() {
-        // Equal top/left penetration must always resolve to Top,
-        // never depend on float == tie-breaking.
+        // Equal top/left penetration must always resolve to Top.
         QRectF moving(0, 0, 10, 10);
         QRectF solid(5, 5, 10, 10);
         QCOMPARE(collisionSide(moving, solid), CollisionSide::Top);
+    }
+
+    void testTieBreakBottomOverSide() {
+        // Equal bottom/left and bottom/right penetration resolves to
+        // Bottom. The old paddle if/else chain resolved these as Left
+        // and Right, so these cases lock the new order.
+        QRectF solid(50, 100, 100, 15);
+        QRectF bottomLeft(39, 110, 16, 16);
+        QCOMPARE(collisionSide(bottomLeft, solid), CollisionSide::Bottom);
+        QRectF bottomRight(145, 110, 16, 16);
+        QCOMPARE(collisionSide(bottomRight, solid), CollisionSide::Bottom);
+    }
+
+    void testTieBreakLeftOverRight() {
+        // Equal left/right penetration resolves to Left.
+        QRectF moving(92, 50, 16, 120);
+        QRectF solid(50, 100, 100, 15);
+        QCOMPARE(collisionSide(moving, solid), CollisionSide::Left);
     }
 
     void testPaddleBounceCentered() {
