@@ -7,7 +7,7 @@ CMakeFiles/
 cmake_install.cmake
 Makefile
 CTestTestfile.cmake
-DartConfiguration.tcl
+.qt/
 
 # MacOS
 .DS_Store
