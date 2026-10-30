@@ -73,6 +73,8 @@ private:
     static constexpr int SIDE_MARGIN = 20;
     static constexpr int TIMER_DELAY = 16; // Target ~60 FPS update
     static constexpr float MAX_TIME_STEP = 0.005f; // Max 5ms per physics step
+    static constexpr qreal MAX_BALL_SPEED_X = 600.0; // Clamp for paddle bounce
+    static constexpr qreal PADDLE_BOUNCE_FACTOR = 8.0; // Hit offset to vx
 };
 
 #endif // GAMEWIDGET_H

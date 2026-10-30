@@ -1,4 +1,5 @@
 #include "GameWidget.h"
+#include "Collision.h"
 #include <QApplication>
 
 GameWidget::GameWidget(QWidget *parent)
@@ -185,35 +186,38 @@ void GameWidget::checkCollision()
 
     // Ball with paddle
     if (bRect.intersects(pRect)) {
-        float overlapTop = bRect.bottom() - pRect.top();
-        float overlapBottom = pRect.bottom() - bRect.top();
-        float overlapLeft = bRect.right() - pRect.left();
-        float overlapRight = pRect.right() - bRect.left();
-
-        float minOverlap = qMin(qMin(overlapTop, overlapBottom), qMin(overlapLeft, overlapRight));
-
-        if (minOverlap == overlapTop) {
-            ball.moveBottom(pRect.top() - 0.1f);
+        switch (collisionSide(bRect, pRect)) {
+        case CollisionSide::Top: {
+            ball.moveBottom(pRect.top() - 0.1);
             ball.setSpeedY(-qAbs(ball.getSpeedY()));
 
-            qreal paddleCenter = pRect.left() + pRect.width() / 2.0;
-            qreal ballCenter = ball.getRect().left() + ball.getRect().width() / 2.0;
-            ball.setSpeedX((ballCenter - paddleCenter) * 8.0); 
-            
+            const qreal ballCenter = ball.getRect().left() + ball.getRect().width() / 2.0;
+            ball.setSpeedX(paddleBounceSpeedX(ballCenter, pRect,
+                                              PADDLE_BOUNCE_FACTOR, MAX_BALL_SPEED_X));
+
             if (qAbs(ball.getSpeedY()) < 100.0) {
                 ball.setSpeedY(-100.0);
             }
-        } else if (minOverlap == overlapLeft) {
-            ball.moveRight(pRect.left() - 0.1f);
-            ball.setSpeedX(-qAbs(ball.getSpeedX()));
-        } else if (minOverlap == overlapRight) {
-            ball.moveLeft(pRect.right() + 0.1f);
-            ball.setSpeedX(qAbs(ball.getSpeedX()));
-        } else {
-            ball.moveTop(pRect.bottom() + 0.1f);
-            ball.setSpeedY(qAbs(ball.getSpeedY()));
+            break;
         }
-        
+        case CollisionSide::Left:
+            // Ball struck the paddle's left face: park it left of the paddle.
+            ball.moveRight(pRect.left() - 0.1);
+            ball.setSpeedX(-qAbs(ball.getSpeedX()));
+            break;
+        case CollisionSide::Right:
+            // Ball struck the paddle's right face: park it right of the paddle.
+            ball.moveLeft(pRect.right() + 0.1);
+            ball.setSpeedX(qAbs(ball.getSpeedX()));
+            break;
+        case CollisionSide::Bottom:
+        default:
+            // Ball ended up under the paddle: push it below.
+            ball.moveTop(pRect.bottom() + 0.1);
+            ball.setSpeedY(qAbs(ball.getSpeedY()));
+            break;
+        }
+
         // Update local reference
         bRect = ball.getRect();
     }
@@ -228,25 +232,24 @@ void GameWidget::checkCollision()
                 int points = (BRICK_ROWS - row) * 10;
                 scoreManager.addScore(points);
                 
-                float overlapTop = bRect.bottom() - brickRect.top();
-                float overlapBottom = brickRect.bottom() - bRect.top();
-                float overlapLeft = bRect.right() - brickRect.left();
-                float overlapRight = brickRect.right() - bRect.left();
-
-                float minOverlap = qMin(qMin(overlapTop, overlapBottom), qMin(overlapLeft, overlapRight));
-
-                if (minOverlap == overlapTop) {
-                    ball.moveBottom(brickRect.top() - 0.1f);
+                switch (collisionSide(bRect, brickRect)) {
+                case CollisionSide::Top:
+                    ball.moveBottom(brickRect.top() - 0.1);
                     ball.setSpeedY(-qAbs(ball.getSpeedY()));
-                } else if (minOverlap == overlapBottom) {
-                    ball.moveTop(brickRect.bottom() + 0.1f);
+                    break;
+                case CollisionSide::Bottom:
+                    ball.moveTop(brickRect.bottom() + 0.1);
                     ball.setSpeedY(qAbs(ball.getSpeedY()));
-                } else if (minOverlap == overlapLeft) {
-                    ball.moveRight(brickRect.left() - 0.1f);
+                    break;
+                case CollisionSide::Left:
+                    ball.moveRight(brickRect.left() - 0.1);
                     ball.setSpeedX(-qAbs(ball.getSpeedX()));
-                } else if (minOverlap == overlapRight) {
-                    ball.moveLeft(brickRect.right() + 0.1f);
+                    break;
+                case CollisionSide::Right:
+                default:
+                    ball.moveLeft(brickRect.right() + 0.1);
                     ball.setSpeedX(qAbs(ball.getSpeedX()));
+                    break;
                 }
                 
                 break; // Only break one brick per step
