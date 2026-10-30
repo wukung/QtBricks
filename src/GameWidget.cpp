@@ -75,8 +75,7 @@ void GameWidget::initGame()
     }
 
     elapsedTimer.start();
-    // initGame only (re)starts the timer: callers restarting a live game
-    // must stopGameTimer() first (see keyPressEvent).
+    stopGameTimer(); // Re-arm: no-op when no timer is live (constructor).
     startGameTimer();
 }
 
@@ -302,7 +301,6 @@ void GameWidget::keyPressEvent(QKeyEvent *event)
                 break; // Holding space must not restart the game repeatedly.
             }
             if (gameOver || gameWon) {
-                stopGameTimer();
                 initGame();
                 repaint();
             } else if (!gameStarted) {
