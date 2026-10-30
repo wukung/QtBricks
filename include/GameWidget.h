@@ -21,7 +21,8 @@ public:
     explicit GameWidget(QWidget *parent = nullptr);
     ~GameWidget();
 
-    // Read-only test hooks (offscreen tests, no behavior change).
+    // Read-only observers: copies of current geometry and flags.
+    // They never mutate game state.
     QRectF ballRect() const { return ball.getRect(); }
     QRectF paddleRect() const { return paddle.getRect(); }
     int remainingBricks() const {
