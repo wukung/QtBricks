@@ -5,11 +5,13 @@
 ```bash
 cmake -B build
 cmake --build build
-QT_QPA_PLATFORM=offscreen ctest --test-dir build --output-on-failure
+cd build
+QT_QPA_PLATFORM=offscreen ctest --output-on-failure
 ```
 
-`QT_QPA_PLATFORM=offscreen` lets the widget tests run without a display
-(the CI workflow sets it too).
+Plain `ctest` (no `--test-dir`, which needs CMake 3.20+) matches the
+CMake >= 3.16 minimum. `QT_QPA_PLATFORM=offscreen` lets the widget tests
+run without a display.
 
 ## Workflow
 
