@@ -1,6 +1,6 @@
 # QtBricks
 
-QtBricks 是一款使用 **C++17** 與 **Qt 6 Widgets** 打造的經典打磚塊 (Breakout) 遊戲。專案採用物件導向架構與 CMake 建置，並內建準確的物理碰撞引擎與單元測試系統，適合作為學習 Qt 開發與遊戲物理設計的參考專案。
+QtBricks 是一款使用 **C++17** 與 **Qt 6 Widgets** 打造的經典打磚塊 (Breakout) 遊戲。（本文件以繁體中文撰寫。）專案採用物件導向架構與 CMake 建置，並內建準確的物理碰撞引擎與單元測試系統，適合作為學習 Qt 開發與遊戲物理設計的參考專案。
 
 ## 🌟 遊戲特色 (Features)
 
@@ -57,3 +57,7 @@ QtBricks 是一款使用 **C++17** 與 **Qt 6 Widgets** 打造的經典打磚塊
 - 核心邏輯存放於 `src/` 與 `include/`。
 - 單元測試存放於 `UT/`。
 - 詳細的技術演進與架構設計規劃，請參閱 [`doc/design.md`](doc/design.md)。
+
+## 📄 授權 (License)
+
+本專案採用 MIT 授權，詳見 [`LICENSE`](LICENSE)。
